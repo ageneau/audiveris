@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- STDIO is the MCP protocol channel: all logs must go to stderr. -->
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%-5level [%thread] %logger{36} - %msg%n%ex</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDERR"/>
+    </root>
+
+    <logger name="org.audiveris" level="INFO"/>
+    <logger name="io.modelcontextprotocol" level="INFO"/>
+    <logger name="org.reflections.Reflections" level="WARN"/>
+
+</configuration>

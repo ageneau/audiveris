@@ -18,6 +18,7 @@ There is one folder per sub-project, each with its own `build.gradle` pilot file
 | Sub-project     | Purpose       | Documentation |
 | :---            | :---          | :---          | 
 | **`app`**       | The application | [app/README.md](./app/README.md) |
+| **`mcp`**       | The MCP server | [mcp/README.md](./mcp/README.md) |
 | **`docs`**      | Building handbook in web and pdf formats | [docs/README.md](./docs/README.md) |
 | **`packaging`** | Building all OS-specific installers | [packaging/README.md](./packaging/README.md) |
 | **`flatpak`**   | Building Linux/Flatpak | [flatpak/README.md](./flatpak/README.md) |
@@ -47,9 +48,15 @@ The order is not strictly alphabetical, in order to group the entities by role.
 ├── gradle.properties                   // Definition of 'the' main variables
 │
 ├── app
-│   ├── build.gradle
-│   └── src
-│       └── ... // a whole tree of main and test .java files
+│   ├── build.gradle
+│   └── src
+│       └── ... // a whole tree of main and test .java files
+│
+├── mcp
+│   ├── build.gradle
+│   ├── INTERFACE.md
+│   └── src
+│       └── ... // MCP server main and test .java files
 │
 ├── docs
 │   ├── build.gradle

@@ -1,0 +1,81 @@
+//------------------------------------------------------------------------------------------------//
+//                                                                                                //
+//                                : m c p / b u i l d . g r a d l e                               //
+//                                                                                                //
+//------------------------------------------------------------------------------------------------//
+//
+// This "mcp" sub-project handles the Audiveris MCP server.
+//
+//--------------------------------------------------------------------------------------------------
+
+plugins {
+    id 'audiveris-commons'
+    id 'application'
+}
+
+base {
+    archivesName = 'audiveris-mcp'
+}
+
+//--------------//
+// Repositories //
+//--------------//
+
+repositories {
+    mavenCentral()
+
+    maven {
+        // Required to obtain non-free JAI, as in ':app'.
+        url = 'https://repository.jboss.org/maven2'
+    }
+
+    mavenLocal()
+}
+
+//--------------//
+// Dependencies //
+//--------------//
+
+dependencies {
+    implementation project(':app')
+
+    implementation 'io.modelcontextprotocol.sdk:mcp:2.1.0'
+
+    // Needed on the compile classpath because ':app' exposes only its API elements.
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+    implementation 'javax.xml.bind:jaxb-api:2.3.1'
+    implementation 'org.bushe:eventbus:1.4'
+    implementation 'org.jgrapht:jgrapht-core:1.5.2'
+    implementation 'org.reflections:reflections:0.10.2'
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+//-------//
+// Tasks //
+//-------//
+
+application {
+    mainClass = 'org.audiveris.mcp.McpServerMain'
+
+    applicationDefaultJvmArgs.add("--add-exports=java.desktop/sun.awt.image=ALL-UNNAMED")
+    applicationDefaultJvmArgs.add("--enable-native-access=ALL-UNNAMED")
+    applicationDefaultJvmArgs.add("-Djava.awt.headless=true")
+    applicationDefaultJvmArgs.add("-Dfile.encoding=UTF-8")
+    applicationDefaultJvmArgs.add("-Dstdout.encoding=UTF-8")
+    applicationDefaultJvmArgs.add("-Dstderr.encoding=UTF-8")
+}
+
+tasks.run {
+    minHeapSize = '512m'
+    maxHeapSize = '8g'
+
+    // Development mode: WellKnowns resolves 'res' relative to the working directory.
+    workingDir = rootProject.file('app')
+}
+
+test {
+    workingDir = rootProject.file('app')
+    testLogging.showStandardStreams = true
+}

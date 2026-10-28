@@ -8,6 +8,7 @@
 //
 // Sub-projects:
 //      - app       : The application
+//      - mcp       : The MCP server
 //      - docs      : The handbook documentation
 //      - flatpak   : The Linux flatpak
 //      - packaging : The building of installers for Windows, Linux and macOS
@@ -43,4 +44,7 @@ if (startParameter.projectProperties['isFlatpak'] == 'true') {
 
     // Generation of schemas-based documentation
     include 'schemas'
+
+    // MCP server
+    include 'mcp'
 }
