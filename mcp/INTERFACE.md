@@ -800,31 +800,33 @@ Input:
 }
 ```
 
-`sheet` is optional. V1 implements only `ocr_languages`:
+`sheet` is optional. Supported v1 keys:
 
-| Key | Type | Scope | V1 |
-| :--- | :--- | :--- | :--- |
-| `ocr_languages` | string | sheet/book | yes |
-| `interline` | integer | sheet | reserved |
-| `beam` | integer | sheet | reserved |
-| `input_quality` | `Synthetic`, `Standard`, `Poor` | sheet | reserved |
-| `music_family` | string | sheet | reserved |
-| `text_family` | string | sheet | reserved |
-| `processing_switches` | object of booleans | sheet/book | reserved |
+| Key | Type | Scope |
+| :--- | :--- | :--- |
+| `ocr_languages` | string | sheet/book |
+| `interline` | positive integer | sheet/book |
+| `beam` | positive integer | sheet/book |
+| `input_quality` | `Synthetic`, `Standard`, `Poor` | sheet/book |
+| `music_family` | string | sheet/book |
+| `text_family` | string | sheet/book |
+| `processing_switches` | object of booleans | sheet/book |
 
 Result:
 
 ```json
 {
-  "applied": ["ocr_languages"],
+  "applied": ["interline", "processing_switches.tremolos"],
   "warnings": []
 }
 ```
 
-Unknown or reserved keys return `UNSUPPORTED`. Invalid values return
-`INVALID_ARGUMENT`.
+Unknown keys return `UNSUPPORTED`. Invalid values return `INVALID_ARGUMENT`.
 
 ### `get_constants`
+
+UI-only constants are not exposed headlessly. Constants containing personal file
+history (`bookHistory`, `imageHistory`) are hidden.
 
 Input:
 

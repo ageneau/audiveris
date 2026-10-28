@@ -109,6 +109,7 @@ public class McpServerMain
                     DiagnosticTools.specs(mapper, new AudiverisFacade()));
             tools.addAll(SessionTools.specs(mapper, service));
             tools.addAll(InspectionTools.specs(mapper, service));
+            tools.addAll(ConstantTools.specs(mapper));
             tools.addAll(ProcessingTools.specs(mapper, service, jobs));
             tools.addAll(JobTools.specs(mapper, service, jobs));
 

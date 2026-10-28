@@ -17,18 +17,18 @@ Implemented:
 - book sessions: `open_input`, `open_book`, `close_book`, `list_books`,
   `get_book`, `get_sheets`, `get_sheet`, `save_book`
 - sheet selection and validity
-- `set_parameters` for `ocr_languages`
+- `set_parameters` for `ocr_languages`, interline, beam, input quality, fonts and processing switches
 - asynchronous jobs: `get_job`, `list_jobs`, `cancel_job`, `get_log`
 - processing and export: `run_step`, `transcribe`, `export_musicxml`,
   `print_book`
 - inspection: `get_score`, `list_symbols`, `get_symbol`
+- constants: `get_constants`, `set_constant`, `reset_constant`
 
 `print_book` depends on Audiveris PDF rendering and can report `IO_ERROR` when
 the upstream renderer fails on a particular score.
 
 Not implemented yet:
 
-- constants and remaining parameters
 - symbol editing
 - Streamable HTTP transport
 

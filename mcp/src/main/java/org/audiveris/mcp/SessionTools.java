@@ -35,9 +35,13 @@ import org.audiveris.omr.sheet.Sheet;
 import org.audiveris.omr.sheet.SheetStub;
 import org.audiveris.omr.sheet.Staff;
 import org.audiveris.omr.sheet.SystemInfo;
+import org.audiveris.omr.sheet.Profiles.InputQuality;
+import org.audiveris.omr.sheet.ProcessingSwitch;
 import org.audiveris.omr.step.OmrStep;
 import org.audiveris.omr.text.Language;
 import org.audiveris.omr.text.tesseract.TesseractOCR;
+import org.audiveris.omr.ui.symbol.MusicFamily;
+import org.audiveris.omr.ui.symbol.TextFamily;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.SortedSet;
 
 /**
@@ -471,19 +476,34 @@ public abstract class SessionTools
         final Map<String, Object> parameterProperties = new LinkedHashMap<>();
         parameterProperties.put("ocr_languages", Schemas.string(
                 "OCR language specification, for example \"eng+fra+spa\"."));
+        parameterProperties.put("interline", Schemas.integer(
+                "Sheet interline, in pixels."));
+        parameterProperties.put("beam", Schemas.integer(
+                "Sheet beam thickness, in pixels."));
+        parameterProperties.put("input_quality", Schemas.stringEnum(
+                List.of("Synthetic", "Standard", "Poor"),
+                "Sheet input quality."));
+        parameterProperties.put("music_family", Schemas.string(
+                "Music font family name."));
+        parameterProperties.put("text_family", Schemas.string(
+                "Text font family name."));
+
+        final Map<String, Object> switchProperties = new LinkedHashMap<>();
+        switchProperties.put("type", "object");
+        switchProperties.put("additionalProperties", Map.of("type", "boolean"));
+        switchProperties.put("description", "Processing switch values.");
+        parameterProperties.put("processing_switches", switchProperties);
 
         final Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("book_id", Schemas.string("Book session identifier."));
         properties.put("sheet", Schemas.integer(
                 "Optional 1-based sheet number; omit for book level."));
-        properties.put("parameters", Schemas.object(
-                parameterProperties,
-                "ocr_languages"));
+        properties.put("parameters", Schemas.object(parameterProperties));
 
         return spec(
                 "set_parameters",
                 "Set parameters",
-                "Set book or sheet parameters. Only ocr_languages is implemented in v1.",
+                "Set book or sheet parameters.",
                 Schemas.object(properties, "book_id", "parameters"),
                 annotations("Set parameters", false, true, true),
                 (exchange, request) -> {
@@ -499,8 +519,17 @@ public abstract class SessionTools
                                     "'parameters' must be an object");
                         }
 
+                        final Set<String> supported = Set.of(
+                                "ocr_languages",
+                                "interline",
+                                "beam",
+                                "input_quality",
+                                "music_family",
+                                "text_family",
+                                "processing_switches");
+
                         for (Object key : parameters.keySet()) {
-                            if (!"ocr_languages".equals(key)) {
+                            if (!supported.contains(String.valueOf(key))) {
                                 return ToolResults.error(
                                         mapper,
                                         "UNSUPPORTED",
@@ -508,64 +537,203 @@ public abstract class SessionTools
                             }
                         }
 
-                        final Object languagesValue = parameters.get("ocr_languages");
-
-                        if (!(languagesValue instanceof String languages)) {
-                            throw new IllegalArgumentException(
-                                    "'ocr_languages' must be a string");
-                        }
-
-                        final String spec = languages.trim();
-
-                        if (spec.isEmpty()) {
-                            throw new IllegalArgumentException(
-                                    "'ocr_languages' must not be empty");
-                        }
-
-                        final SortedSet<String> installed;
-
-                        try {
-                            installed = TesseractOCR.getInstance().getSupportedLanguages();
-                        } catch (Throwable ex) {
-                            return ToolResults.error(
-                                    mapper,
-                                    "OCR_UNAVAILABLE",
-                                    ex.toString());
-                        }
-
-                        for (String code : Language.codesOf(spec)) {
-                            if (!installed.contains(code)) {
-                                throw new IllegalArgumentException(
-                                        "OCR language is not installed: " + code);
-                            }
-                        }
-
                         final BookSession session = service.get(bookId);
                         session.lock.lock();
 
                         try {
-                            if (sheetNumber != null) {
-                                final SheetStub stub = session.book.getStub(sheetNumber);
+                            final SheetStub stub = sheetNumber == null
+                                    ? null
+                                    : session.book.getStub(sheetNumber);
 
-                                if (stub == null) {
-                                    throw new NoSuchElementException(
-                                            "No sheet " + sheetNumber + " in book " + bookId);
-                                }
-
-                                stub.getOcrLanguagesParam().setSpecific(spec);
-                                stub.setModified(true);
-                            } else {
-                                session.book.getOcrLanguagesParam().setSpecific(spec);
+                            if ((sheetNumber != null) && (stub == null)) {
+                                throw new NoSuchElementException(
+                                        "No sheet " + sheetNumber + " in book " + bookId);
                             }
 
-                            session.book.setModified(true);
+                            final Book book = session.book;
+                            final List<String> applied = new ArrayList<>();
+
+                            for (Map.Entry<?, ?> entry : parameters.entrySet()) {
+                                final String key = String.valueOf(entry.getKey());
+                                final Object value = entry.getValue();
+
+                                switch (key) {
+                                    case "ocr_languages" -> {
+                                        final String spec = stringValue(value, key).trim();
+
+                                        if (spec.isEmpty()) {
+                                            throw new IllegalArgumentException(
+                                                    "'ocr_languages' must not be empty");
+                                        }
+
+                                        final SortedSet<String> installed;
+
+                                        try {
+                                            installed = TesseractOCR.getInstance()
+                                                    .getSupportedLanguages();
+                                        } catch (Throwable ex) {
+                                            return ToolResults.error(
+                                                    mapper,
+                                                    "OCR_UNAVAILABLE",
+                                                    ex.toString());
+                                        }
+
+                                        for (String code : Language.codesOf(spec)) {
+                                            if (!installed.contains(code)) {
+                                                throw new IllegalArgumentException(
+                                                        "OCR language is not installed: " + code);
+                                            }
+                                        }
+
+                                        if (stub != null) {
+                                            stub.getOcrLanguagesParam().setSpecific(spec);
+                                        } else {
+                                            book.getOcrLanguagesParam().setSpecific(spec);
+                                        }
+
+                                        applied.add(key);
+                                    }
+
+                                    case "interline" -> {
+                                        final int valueInt = positiveInt(value, key);
+
+                                        if (stub != null) {
+                                            stub.getInterlineSpecificationParam().setSpecific(
+                                                    valueInt);
+                                        } else {
+                                            book.getInterlineSpecificationParam().setSpecific(
+                                                    valueInt);
+                                        }
+
+                                        applied.add(key);
+                                    }
+
+                                    case "beam" -> {
+                                        final int valueInt = positiveInt(value, key);
+
+                                        if (stub != null) {
+                                            stub.getBeamSpecificationParam().setSpecific(valueInt);
+                                        } else {
+                                            book.getBeamSpecificationParam().setSpecific(valueInt);
+                                        }
+
+                                        applied.add(key);
+                                    }
+
+                                    case "input_quality" -> {
+                                        final InputQuality quality;
+
+                                        try {
+                                            quality = InputQuality.valueOf(
+                                                    stringValue(value, key));
+                                        } catch (IllegalArgumentException ex) {
+                                            throw new IllegalArgumentException(
+                                                    "'input_quality' must be Synthetic, Standard or Poor");
+                                        }
+
+                                        if (stub != null) {
+                                            stub.getInputQualityParam().setSpecific(quality);
+                                        } else {
+                                            book.getInputQualityParam().setSpecific(quality);
+                                        }
+
+                                        applied.add(key);
+                                    }
+
+                                    case "music_family" -> {
+                                        final MusicFamily family = MusicFamily.valueOfName(
+                                                stringValue(value, key));
+
+                                        if (family == null) {
+                                            throw new IllegalArgumentException(
+                                                    "Unknown music_family: " + value);
+                                        }
+
+                                        if (stub != null) {
+                                            stub.getMusicFamilyParam().setSpecific(family);
+                                        } else {
+                                            book.getMusicFamilyParam().setSpecific(family);
+                                        }
+
+                                        applied.add(key);
+                                    }
+
+                                    case "text_family" -> {
+                                        final TextFamily family = TextFamily.valueOfName(
+                                                stringValue(value, key));
+
+                                        if (family == null) {
+                                            throw new IllegalArgumentException(
+                                                    "Unknown text_family: " + value);
+                                        }
+
+                                        if (stub != null) {
+                                            stub.getTextFamilyParam().setSpecific(family);
+                                        } else {
+                                            book.getTextFamilyParam().setSpecific(family);
+                                        }
+
+                                        applied.add(key);
+                                    }
+
+                                    case "processing_switches" -> {
+                                        final Map<?, ?> switches = mapValue(value, key);
+
+                                        for (Map.Entry<?, ?> switchEntry : switches.entrySet()) {
+                                            final String switchName = String.valueOf(
+                                                    switchEntry.getKey());
+                                            final ProcessingSwitch processingSwitch;
+
+                                            try {
+                                                processingSwitch = ProcessingSwitch.valueOf(
+                                                        switchName);
+                                            } catch (IllegalArgumentException ex) {
+                                                throw new IllegalArgumentException(
+                                                        "Unknown processing switch: " + switchName);
+                                            }
+
+                                            if (!ProcessingSwitch.supportedSwitches.contains(
+                                                    processingSwitch)) {
+                                                throw new IllegalArgumentException(
+                                                        "Unsupported processing switch: "
+                                                                + switchName);
+                                            }
+
+                                            final boolean enabled = booleanValue(
+                                                    switchEntry.getValue(),
+                                                    "processing_switches." + switchName);
+
+                                            if (stub != null) {
+                                                stub.getProcessingSwitches()
+                                                        .getParam(processingSwitch)
+                                                        .setSpecific(enabled);
+                                            } else {
+                                                book.getProcessingSwitches()
+                                                        .getParam(processingSwitch)
+                                                        .setSpecific(enabled);
+                                            }
+
+                                            applied.add("processing_switches." + switchName);
+                                        }
+                                    }
+
+                                    default -> throw new IllegalArgumentException(
+                                            "Unsupported parameter: " + key);
+                                }
+                            }
+
+                            if (stub != null) {
+                                stub.setModified(true);
+                            } else {
+                                book.setModified(true);
+                            }
+
+                            return ToolResults.success(
+                                    mapper,
+                                    Map.of("applied", applied));
                         } finally {
                             session.lock.unlock();
                         }
-
-                        return ToolResults.success(
-                                mapper,
-                                Map.of("applied", List.of("ocr_languages")));
                     } catch (Throwable ex) {
                         return error(mapper, ex);
                     }
@@ -844,6 +1012,52 @@ public abstract class SessionTools
     private static Map<String, Object> arguments (CallToolRequest request)
     {
         return request.arguments() != null ? request.arguments() : Map.of();
+    }
+
+    private static String stringValue (Object value,
+                                       String key)
+    {
+        if (!(value instanceof String string)) {
+            throw new IllegalArgumentException("'" + key + "' must be a string");
+        }
+
+        return string;
+    }
+
+    private static int positiveInt (Object value,
+                                    String key)
+    {
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException("'" + key + "' must be an integer");
+        }
+
+        final int result = number.intValue();
+
+        if (result <= 0) {
+            throw new IllegalArgumentException("'" + key + "' must be positive");
+        }
+
+        return result;
+    }
+
+    private static boolean booleanValue (Object value,
+                                         String key)
+    {
+        if (!(value instanceof Boolean bool)) {
+            throw new IllegalArgumentException("'" + key + "' must be a boolean");
+        }
+
+        return bool;
+    }
+
+    private static Map<?, ?> mapValue (Object value,
+                                       String key)
+    {
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException("'" + key + "' must be an object");
+        }
+
+        return map;
     }
 
     private static String requiredString (Map<String, Object> args,
