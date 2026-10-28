@@ -51,6 +51,7 @@ import org.audiveris.omr.sig.inter.KeyInter;
 import org.audiveris.omr.sig.inter.LyricItemInter;
 import org.audiveris.omr.sig.inter.MetronomeInter;
 import org.audiveris.omr.sig.inter.SentenceInter;
+import org.audiveris.omr.sig.inter.SlurInter;
 import org.audiveris.omr.sig.inter.WordInter;
 import org.audiveris.omr.sig.relation.Relation;
 import org.audiveris.omr.sig.relation.Support;
@@ -486,6 +487,10 @@ public abstract class InspectionTools
 
         if (inter instanceof MetronomeInter metronome) {
             data.put("text", metronome.getValue());
+        }
+
+        if (inter instanceof SlurInter slur) {
+            data.put("tie", slur.isTie());
         }
 
         if (inter instanceof AbstractNumberInter number) {

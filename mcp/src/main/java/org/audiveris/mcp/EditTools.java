@@ -30,9 +30,11 @@ import io.modelcontextprotocol.spec.McpSchema.Tool;
 import io.modelcontextprotocol.spec.McpSchema.ToolAnnotations;
 
 import org.audiveris.omr.glyph.Shape;
+import org.audiveris.omr.sig.inter.HeadChordInter;
 import org.audiveris.omr.sig.inter.Inter;
 import org.audiveris.omr.sig.relation.Relation;
 import org.audiveris.omr.sig.relation.Support;
+import org.audiveris.omr.sheet.SystemInfo;
 
 import java.awt.Point;
 import java.util.ArrayList;
@@ -66,7 +68,13 @@ public abstract class EditTools
                 unlinkSymbols(mapper, service),
                 undoEdit(mapper, service),
                 redoEdit(mapper, service),
-                getEditHistory(mapper, service));
+                getEditHistory(mapper, service),
+                updateSymbol(mapper, service),
+                reprocessRhythm(mapper, service),
+                toggleTie(mapper, service),
+                mergeChords(mapper, service),
+                splitChord(mapper, service),
+                mergeSystems(mapper, service));
     }
 
     private static SyncToolSpecification addSymbol (McpJsonMapper mapper,
@@ -444,6 +452,338 @@ public abstract class EditTools
                             data.put(undo ? "undone" : "redone", entries.size());
                             data.put("history", historySummary(edit.history()));
                             return ToolResults.success(mapper, data);
+                        } finally {
+                            session.lock.unlock();
+                        }
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
+    private static SyncToolSpecification updateSymbol (McpJsonMapper mapper,
+                                                       OmrService service)
+    {
+        final Map<String, Object> changeProperties = new LinkedHashMap<>();
+        changeProperties.put("text", Schemas.string("New text value."));
+        changeProperties.put("syllable", Schemas.stringEnum(
+                List.of("SINGLE", "BEGIN", "MIDDLE", "END"),
+                "Lyric syllabic type."));
+        changeProperties.put("role", Schemas.string("Sentence text role."));
+        changeProperties.put("pitch", Schemas.number("New pitch value."));
+        changeProperties.put("voice_id", Schemas.integer("Preferred voice ID."));
+        changeProperties.put("numerator", Schemas.integer("Time numerator."));
+        changeProperties.put("denominator", Schemas.integer("Time denominator."));
+        changeProperties.put("shape", Schemas.string("New Shape enum name."));
+        changeProperties.put("staff_id", Schemas.integer("New staff ID."));
+        changeProperties.put("value", Schemas.integer("New number value."));
+
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer("1-based sheet number."));
+        properties.put("inter_id", Schemas.integer("Inter ID."));
+        properties.put("changes", Schemas.object(changeProperties));
+        properties.put("relink", Schemas.bool(
+                "Reserved for future link recomputation (default: true)."));
+
+        return spec(
+                "update_symbol",
+                "Update symbol",
+                "Update text, rhythm, pitch, voice, shape or staff properties.",
+                Schemas.object(properties, "book_id", "sheet", "inter_id", "changes"),
+                annotations("Update symbol", false, true, false),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final int sheetNumber = requiredInteger(args, "sheet");
+                        final int interId = requiredInteger(args, "inter_id");
+                        final Object changesValue = args.get("changes");
+
+                        if (!(changesValue instanceof Map<?, ?> changesMap)) {
+                            throw new IllegalArgumentException(
+                                    "'changes' must be an object");
+                        }
+
+                        final Map<String, Object> changes = new LinkedHashMap<>();
+
+                        for (Map.Entry<?, ?> entry : changesMap.entrySet()) {
+                            changes.put(String.valueOf(entry.getKey()), entry.getValue());
+                        }
+
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            final OmrEditService edit = new OmrEditService(session, sheetNumber);
+                            final Inter inter = edit.findInter(interId);
+                            edit.updateSymbol(inter, changes);
+                            return ToolResults.success(
+                                    mapper,
+                                    Map.of("symbol", InspectionTools.symbolSummary(
+                                            inter,
+                                            true,
+                                            true,
+                                            false)));
+                        } finally {
+                            session.lock.unlock();
+                        }
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
+    private static SyncToolSpecification reprocessRhythm (McpJsonMapper mapper,
+                                                          OmrService service)
+    {
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer("1-based sheet number."));
+        properties.put("stack_id", Schemas.integer("Optional measure stack ID."));
+        properties.put("page_id", Schemas.integer("Optional page ID."));
+
+        return spec(
+                "reprocess_rhythm",
+                "Reprocess rhythm",
+                "Reprocess rhythm for a stack, a page, or the first page.",
+                Schemas.object(properties, "book_id", "sheet"),
+                annotations("Reprocess rhythm", false, true, false),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final int sheetNumber = requiredInteger(args, "sheet");
+                        final Integer stackId = optionalInteger(args, "stack_id");
+                        final Integer pageId = optionalInteger(args, "page_id");
+
+                        if ((stackId != null) && (pageId != null)) {
+                            throw new IllegalArgumentException(
+                                    "Provide stack_id or page_id, not both");
+                        }
+
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            final OmrEditService edit = new OmrEditService(session, sheetNumber);
+                            return ToolResults.success(
+                                    mapper,
+                                    edit.reprocessRhythm(stackId, pageId));
+                        } finally {
+                            session.lock.unlock();
+                        }
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
+    private static SyncToolSpecification toggleTie (McpJsonMapper mapper,
+                                                    OmrService service)
+    {
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer("1-based sheet number."));
+        properties.put("inter_id", Schemas.integer("Slur inter ID."));
+
+        return spec(
+                "toggle_tie",
+                "Toggle tie",
+                "Toggle the tie aspect of a slur.",
+                Schemas.object(properties, "book_id", "sheet", "inter_id"),
+                annotations("Toggle tie", false, true, false),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final int sheetNumber = requiredInteger(args, "sheet");
+                        final int interId = requiredInteger(args, "inter_id");
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            final OmrEditService edit = new OmrEditService(session, sheetNumber);
+                            final Inter inter = edit.findInter(interId);
+                            edit.toggleTie(inter);
+                            return ToolResults.success(
+                                    mapper,
+                                    Map.of("symbol", InspectionTools.symbolSummary(
+                                            inter,
+                                            true,
+                                            true,
+                                            false)));
+                        } finally {
+                            session.lock.unlock();
+                        }
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
+    private static SyncToolSpecification mergeChords (McpJsonMapper mapper,
+                                                       OmrService service)
+    {
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer("1-based sheet number."));
+        properties.put("chord_ids", Schemas.array(
+                Schemas.integer("Head chord ID"),
+                "Chords to merge."));
+        properties.put("with_stem", Schemas.bool(
+                "Build a merged stem (default: true)."));
+
+        return spec(
+                "merge_chords",
+                "Merge chords",
+                "Merge two or more head chords into a new chord.",
+                Schemas.object(properties, "book_id", "sheet", "chord_ids"),
+                annotations("Merge chords", false, true, false),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final int sheetNumber = requiredInteger(args, "sheet");
+                        final List<Integer> chordIds = intList(args.get("chord_ids"), "chord_ids");
+                        final boolean withStem = optionalBoolean(args, "with_stem", true);
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            final OmrEditService edit = new OmrEditService(session, sheetNumber);
+                            final List<HeadChordInter> chords = new ArrayList<>();
+
+                            for (Integer id : chordIds) {
+                                final Inter inter = edit.findInter(id);
+
+                                if (!(inter instanceof HeadChordInter chord)) {
+                                    throw new IllegalArgumentException(
+                                            "Inter " + id + " is not a HeadChordInter");
+                                }
+
+                                chords.add(chord);
+                            }
+
+                            final HeadChordInter merged = edit.mergeChords(chords, withStem);
+                            return ToolResults.success(
+                                    mapper,
+                                    Map.of("symbol", InspectionTools.symbolSummary(
+                                            merged,
+                                            true,
+                                            true,
+                                            false)));
+                        } finally {
+                            session.lock.unlock();
+                        }
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
+    private static SyncToolSpecification splitChord (McpJsonMapper mapper,
+                                                     OmrService service)
+    {
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer("1-based sheet number."));
+        properties.put("inter_id", Schemas.integer("Head chord ID."));
+
+        return spec(
+                "split_chord",
+                "Split chord",
+                "Split a head chord into two chords.",
+                Schemas.object(properties, "book_id", "sheet", "inter_id"),
+                annotations("Split chord", false, true, false),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final int sheetNumber = requiredInteger(args, "sheet");
+                        final int interId = requiredInteger(args, "inter_id");
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            final OmrEditService edit = new OmrEditService(session, sheetNumber);
+                            final Inter inter = edit.findInter(interId);
+
+                            if (!(inter instanceof HeadChordInter chord)) {
+                                throw new IllegalArgumentException(
+                                        "Inter " + interId + " is not a HeadChordInter");
+                            }
+
+                            final List<HeadChordInter> newChords = edit.splitChord(chord);
+                            final List<Map<String, Object>> summaries = new ArrayList<>();
+
+                            for (HeadChordInter newChord : newChords) {
+                                summaries.add(InspectionTools.symbolSummary(
+                                        newChord,
+                                        true,
+                                        true,
+                                        false));
+                            }
+
+                            return ToolResults.success(mapper, Map.of("chords", summaries));
+                        } finally {
+                            session.lock.unlock();
+                        }
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
+    private static SyncToolSpecification mergeSystems (McpJsonMapper mapper,
+                                                       OmrService service)
+    {
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer("1-based sheet number."));
+        properties.put("system_id", Schemas.integer("Upper system ID."));
+
+        return spec(
+                "merge_systems",
+                "Merge systems",
+                "Merge a system with the system below it.",
+                Schemas.object(properties, "book_id", "sheet", "system_id"),
+                annotations("Merge systems", false, true, false),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final int sheetNumber = requiredInteger(args, "sheet");
+                        final int systemId = requiredInteger(args, "system_id");
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            final OmrEditService edit = new OmrEditService(session, sheetNumber);
+                            SystemInfo target = null;
+
+                            for (SystemInfo system : edit.sheet().getSystems()) {
+                                if (system.getId() == systemId) {
+                                    target = system;
+                                    break;
+                                }
+                            }
+
+                            if (target == null) {
+                                throw new NoSuchElementException(
+                                        "No system " + systemId + " on sheet " + sheetNumber);
+                            }
+
+                            edit.mergeSystem(target);
+                            return ToolResults.success(
+                                    mapper,
+                                    Map.of("system_id", systemId, "ok", true));
                         } finally {
                             session.lock.unlock();
                         }

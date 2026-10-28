@@ -404,7 +404,11 @@ unless stated otherwise.
 | `undo_edit` | no | no | yes |
 | `redo_edit` | no | no | yes |
 | `get_edit_history` | no | yes | no |
-| `reprocess_rhythm` | yes | no | yes |
+| `reprocess_rhythm` | no | no | yes |
+| `toggle_tie` | no | no | yes |
+| `merge_chords` | no | no | yes |
+| `split_chord` | no | no | yes |
+| `merge_systems` | no | no | yes |
 
 "Async" tools return `{"job_id": "..."}` immediately. Poll with `get_job`.
 
@@ -1235,11 +1239,12 @@ When `include_glyph` is true, `symbol` also contains:
 
 Editing operates on one sheet at a time and is serialized with processing.
 
-Implemented v1: `add_symbol`, `remove_symbols`, `move_symbol`, `link_symbols`,
-`unlink_symbols`, `undo_edit`, `redo_edit`, `get_edit_history`.
+Implemented v1: `add_symbol`, `remove_symbols`, `move_symbol`, `update_symbol`,
+`link_symbols`, `unlink_symbols`, `toggle_tie`, `reprocess_rhythm`,
+`merge_chords`, `split_chord`, `merge_systems`, `undo_edit`, `redo_edit`,
+`get_edit_history`.
 
-Reserved for later: `update_symbol`, `reprocess_rhythm`, split/merge chords,
-merge systems, toggle tie, cross-system links and glyph pixel rebuilding.
+Reserved for later: cross-system links and glyph pixel rebuilding.
 
 ### `add_symbol`
 
@@ -1354,13 +1359,11 @@ Input:
     "text": "Andante",
     "numerator": 6,
     "denominator": 8,
-    "beat_unit": "quarter",
-    "per_minute": 120,
     "value": 3,
     "voice_id": 2,
     "pitch": 60,
     "role": "ChordName",
-    "syllable": "begin",
+    "syllable": "BEGIN",
     "staff_id": 3
   },
   "relink": true
@@ -1379,8 +1382,7 @@ Input:
 | `syllable` | `LyricItemInter` |
 | `role` | `SentenceInter` |
 | `numerator`, `denominator` | `TimeCustomInter` |
-| `beat_unit`, `per_minute` | `MetronomeInter` |
-| `value` | `NumberInter` |
+| `value` | `AbstractNumberInter` |
 
 Unsupported keys for the target class return `UNSUPPORTED`.
 
@@ -1459,6 +1461,99 @@ Result:
 }
 ```
 
+### `toggle_tie`
+
+Input:
+
+```json
+{
+  "book_id": "...",
+  "sheet": 1,
+  "inter_id": 3129
+}
+```
+
+Toggles the tie flag of a `SlurInter`.
+
+Result:
+
+```json
+{
+  "symbol": {
+    "inter_id": 3129,
+    "class": "SlurInter",
+    "attributes": {
+      "tie": true
+    }
+  }
+}
+```
+
+### `merge_chords`
+
+Input:
+
+```json
+{
+  "book_id": "...",
+  "sheet": 1,
+  "chord_ids": [3011, 3012],
+  "with_stem": true
+}
+```
+
+Merges head chords belonging to the same SIG. `with_stem` defaults to `true`.
+
+Result: updated merged `SymbolSummary`.
+
+### `split_chord`
+
+Input:
+
+```json
+{
+  "book_id": "...",
+  "sheet": 1,
+  "inter_id": 3643
+}
+```
+
+Splits one `HeadChordInter` into two chords.
+
+Result:
+
+```json
+{
+  "chords": [
+    {"inter_id": 3645, "class": "HeadChordInter"},
+    {"inter_id": 3646, "class": "HeadChordInter"}
+  ]
+}
+```
+
+### `merge_systems`
+
+Input:
+
+```json
+{
+  "book_id": "...",
+  "sheet": 1,
+  "system_id": 1
+}
+```
+
+Merges the given system with the system immediately below it.
+
+Result:
+
+```json
+{
+  "system_id": 1,
+  "ok": true
+}
+```
+
 ### `undo_edit`
 
 Input:
@@ -1529,21 +1624,19 @@ Input:
   "book_id": "...",
   "sheet": 1,
   "stack_id": 4,
-  "page_id": null,
-  "save": true
+  "page_id": null
 }
 ```
 
-Exactly one of `stack_id` or `page_id` is required. If neither is given, the
-whole sheet page is reprocessed.
+At most one of `stack_id` or `page_id` is given. If neither is given, the first
+page of the sheet is reprocessed.
 
-Job result:
+Result:
 
 ```json
 {
-  "book_id": "...",
-  "sheet": 1,
   "stack_id": 4,
+  "page_id": null,
   "ok": true
 }
 ```

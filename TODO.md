@@ -5,7 +5,6 @@ See [`PLAN.md`](PLAN.md) for the detailed MCP server plan and
 
 ## Next
 
-- [ ] Add advanced editing: `update_symbol`, `reprocess_rhythm`, split/merge chords, merge systems, toggle tie.
 - [ ] Add MCP packaging/release documentation and CI smoke coverage.
 
 ## Done
@@ -19,6 +18,8 @@ See [`PLAN.md`](PLAN.md) for the detailed MCP server plan and
 - [x] Add core symbol editing: add/remove/move/link/unlink, undo/redo and history.
 - [x] Add Streamable HTTP transport with loopback binding, optional bearer token, and `both` mode.
 - [x] Add integration tests for transcribe/export and editing.
+- [x] Add advanced editing: `update_symbol`, `reprocess_rhythm`, `toggle_tie`.
+- [x] Add chord split/merge and system merge.
 - [x] Add `set_parameters` for OCR languages and document legacy tessdata.
 - [x] Make `Main.getCli()` null-safe for headless embedding.
 - [x] Add unit tests for schemas and result envelopes.

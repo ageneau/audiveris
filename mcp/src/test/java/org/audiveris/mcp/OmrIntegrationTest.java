@@ -34,7 +34,10 @@ import org.audiveris.omr.score.ScoreExporter;
 import org.audiveris.omr.sheet.Book;
 import org.audiveris.omr.sheet.SheetStub;
 import org.audiveris.omr.sig.SIGraph;
+import org.audiveris.omr.sig.inter.AbstractPitchedInter;
+import org.audiveris.omr.sig.inter.HeadChordInter;
 import org.audiveris.omr.sig.inter.HeadInter;
+import org.audiveris.omr.sig.inter.SlurInter;
 import org.audiveris.omr.sig.inter.Inter;
 import org.audiveris.omr.sig.relation.Relation;
 
@@ -51,6 +54,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -155,6 +159,79 @@ public class OmrIntegrationTest
                     assertTrue(document.getElementsByTagName("note").getLength() > 0);
                 }
             }
+        } finally {
+            service.close(session.id, false);
+        }
+    }
+
+    @Test
+    public void mergeSplitAndMergeSystems ()
+        throws Exception
+    {
+        final BookSession session = service.openBook(bookFile.toString()).session();
+
+        try {
+            final OmrEditService edit = new OmrEditService(session, 1);
+            final SIGraph sig = session.book.getStub(1).getSheet().getSystems().get(0).getSig();
+            final List<HeadChordInter> chords = sig.vertexSet().stream()
+                    .filter(inter -> inter instanceof HeadChordInter)
+                    .map(inter -> (HeadChordInter) inter)
+                    .limit(2)
+                    .toList();
+
+            assertEquals(2, chords.size());
+
+            final HeadChordInter merged = edit.mergeChords(chords, true);
+            assertNotNull(merged);
+
+            final List<HeadChordInter> split = edit.splitChord(merged);
+            assertEquals(2, split.size());
+
+            final var sheet = session.book.getStub(1).getSheet();
+            final int systemCount = sheet.getSystems().size();
+            edit.mergeSystem(sheet.getSystems().get(0));
+            assertTrue(sheet.getSystems().size() < systemCount);
+
+            edit.undo(1);
+            assertEquals(systemCount, sheet.getSystems().size());
+        } finally {
+            service.close(session.id, false);
+        }
+    }
+
+    @Test
+    public void updateAndToggleTie ()
+        throws Exception
+    {
+        final BookSession session = service.openBook(bookFile.toString()).session();
+
+        try {
+            final OmrEditService edit = new OmrEditService(session, 1);
+            final SIGraph sig = session.book.getStub(1).getSheet().getSystems().get(0).getSig();
+            final AbstractPitchedInter head = sig.vertexSet().stream()
+                    .filter(inter -> inter instanceof HeadInter)
+                    .map(inter -> (AbstractPitchedInter) inter)
+                    .findFirst()
+                    .orElseThrow();
+
+            edit.updateSymbol(head, Map.of("pitch", 1.23));
+            assertEquals(1.23, head.getPitch(), 0.0001);
+
+            final SlurInter slur = session.book.getStub(1).getSheet().getSystems().stream()
+                    .flatMap(system -> system.getSig().vertexSet().stream())
+                    .filter(inter -> inter instanceof SlurInter)
+                    .map(inter -> (SlurInter) inter)
+                    .findFirst()
+                    .orElseThrow();
+
+            final boolean before = slur.isTie();
+            edit.toggleTie(slur);
+            assertEquals(!before, slur.isTie());
+            edit.toggleTie(slur);
+            assertEquals(before, slur.isTie());
+
+            final Map<String, Object> rhythm = edit.reprocessRhythm(1, null);
+            assertEquals(Boolean.TRUE, rhythm.get("ok"));
         } finally {
             service.close(session.id, false);
         }

@@ -72,6 +72,11 @@ public abstract class Schemas
         return typed("boolean", description);
     }
 
+    public static Map<String, Object> number (String description)
+    {
+        return typed("number", description);
+    }
+
     public static Map<String, Object> array (Map<String, Object> items,
                                              String description)
     {
