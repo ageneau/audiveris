@@ -17,10 +17,15 @@ Implemented:
 - book sessions: `open_input`, `open_book`, `close_book`, `list_books`,
   `get_book`, `get_sheets`, `get_sheet`, `save_book`
 - sheet selection and validity
+- asynchronous jobs: `get_job`, `list_jobs`, `cancel_job`, `get_log`
+- processing and export: `run_step`, `transcribe`, `export_musicxml`,
+  `print_book`
+
+`print_book` depends on Audiveris PDF rendering and can report `IO_ERROR` when
+the upstream renderer fails on a particular score.
 
 Not implemented yet:
 
-- asynchronous processing jobs (`run_step`, `transcribe`, export/print)
 - score and symbol inspection
 - symbol editing
 - Streamable HTTP transport

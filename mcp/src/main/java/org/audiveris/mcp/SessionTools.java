@@ -571,7 +571,7 @@ public abstract class SessionTools
             final Map<String, Object> pageData = new LinkedHashMap<>();
             pageData.put("page_id", page.getId());
             pageData.put("movement_start", page.isMovementStart());
-            pageData.put("measure_count", page.getMeasureCount());
+            pageData.put("measure_count", measureCount(page));
             pages.add(pageData);
         }
         data.put("pages", pages);
@@ -629,6 +629,15 @@ public abstract class SessionTools
         }
 
         return data;
+    }
+
+    private static Integer measureCount (Page page)
+    {
+        try {
+            return page.getMeasureCount();
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     private static List<String> stepsDone (SheetStub stub)

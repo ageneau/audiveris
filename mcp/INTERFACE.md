@@ -1010,6 +1010,9 @@ Job result:
 }
 ```
 
+Printing depends on the Audiveris PDF renderer. If it does not produce a valid
+PDF header, the job fails with `IO_ERROR`.
+
 ### `annotate_book`
 
 Input:

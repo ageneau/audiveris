@@ -277,7 +277,7 @@ public class OmrService
         return id == null ? null : sessions.get(id);
     }
 
-    private Path resolve (String value)
+    public Path resolve (String value)
     {
         final Path path = Path.of(value);
 

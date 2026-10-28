@@ -31,6 +31,8 @@ import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 
 import org.audiveris.omr.WellKnowns;
 
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.URL;
@@ -40,6 +42,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Main entry point for the Audiveris MCP server.
@@ -89,6 +92,8 @@ public class McpServerMain
             return;
         }
 
+        final CountDownLatch stdinClosed = new CountDownLatch(1);
+
         try {
             HeadlessBootstrap.initialize(options.workspace);
 
@@ -99,13 +104,43 @@ public class McpServerMain
 
             final McpJsonMapper mapper = McpJsonDefaults.getMapper();
             final OmrService service = new OmrService(workspace);
+            final JobManager jobs = new JobManager(service);
             final List<SyncToolSpecification> tools = new ArrayList<>(
                     DiagnosticTools.specs(mapper, new AudiverisFacade()));
             tools.addAll(SessionTools.specs(mapper, service));
+            tools.addAll(ProcessingTools.specs(mapper, service, jobs));
+            tools.addAll(JobTools.specs(mapper, service, jobs));
+
+            final InputStream transportInput = new FilterInputStream(System.in)
+            {
+                @Override
+                public int read ()
+                    throws IOException
+                {
+                    final int value = super.read();
+                    if (value == -1) {
+                        stdinClosed.countDown();
+                    }
+                    return value;
+                }
+
+                @Override
+                public int read (byte[] buffer,
+                                 int offset,
+                                 int length)
+                    throws IOException
+                {
+                    final int count = super.read(buffer, offset, length);
+                    if (count == -1) {
+                        stdinClosed.countDown();
+                    }
+                    return count;
+                }
+            };
 
             final StdioServerTransportProvider transport = new StdioServerTransportProvider(
                     mapper,
-                    System.in,
+                    transportInput,
                     protocolOut);
 
             final McpSyncServer server = McpServer.sync(transport)
@@ -122,6 +157,7 @@ public class McpServerMain
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
+                    jobs.close();
                     service.closeAll();
                 } finally {
                     server.closeGracefully();
@@ -129,7 +165,8 @@ public class McpServerMain
             }));
 
             // Keep the process alive while the STDIO transport is connected.
-            Thread.currentThread().join();
+            stdinClosed.await();
+            System.exit(0);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         } catch (Throwable ex) {

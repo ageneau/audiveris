@@ -82,6 +82,25 @@ public abstract class Schemas
         return schema;
     }
 
+    public static Map<String, Object> sheetSpec (String description)
+    {
+        final Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", java.util.List.of("string", "integer", "array"));
+        schema.put("items", Map.of("type", "integer"));
+        schema.put("description", description);
+        return schema;
+    }
+
+    public static Map<String, Object> stringEnum (java.util.List<String> values,
+                                                  String description)
+    {
+        final Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "string");
+        schema.put("enum", values);
+        schema.put("description", description);
+        return schema;
+    }
+
     private static Map<String, Object> typed (String type,
                                               String description)
     {
