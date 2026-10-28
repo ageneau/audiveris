@@ -21,13 +21,14 @@ Implemented:
 - asynchronous jobs: `get_job`, `list_jobs`, `cancel_job`, `get_log`
 - processing and export: `run_step`, `transcribe`, `export_musicxml`,
   `print_book`
+- inspection: `get_score`, `list_symbols`, `get_symbol`
 
 `print_book` depends on Audiveris PDF rendering and can report `IO_ERROR` when
 the upstream renderer fails on a particular score.
 
 Not implemented yet:
 
-- score and symbol inspection
+- constants and remaining parameters
 - symbol editing
 - Streamable HTTP transport
 

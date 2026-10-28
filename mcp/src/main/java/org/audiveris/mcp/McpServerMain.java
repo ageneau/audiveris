@@ -108,6 +108,7 @@ public class McpServerMain
             final List<SyncToolSpecification> tools = new ArrayList<>(
                     DiagnosticTools.specs(mapper, new AudiverisFacade()));
             tools.addAll(SessionTools.specs(mapper, service));
+            tools.addAll(InspectionTools.specs(mapper, service));
             tools.addAll(ProcessingTools.specs(mapper, service, jobs));
             tools.addAll(JobTools.specs(mapper, service, jobs));
 
