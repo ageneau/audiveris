@@ -23,13 +23,16 @@ Implemented:
   `print_book`
 - inspection: `get_score`, `list_symbols`, `get_symbol`
 - constants: `get_constants`, `set_constant`, `reset_constant`
+- editing: `add_symbol`, `remove_symbols`, `move_symbol`, `link_symbols`,
+  `unlink_symbols`, `undo_edit`, `redo_edit`, `get_edit_history`
 
 `print_book` depends on Audiveris PDF rendering and can report `IO_ERROR` when
 the upstream renderer fails on a particular score.
 
 Not implemented yet:
 
-- symbol editing
+- advanced editing: `update_symbol`, `reprocess_rhythm`, split/merge chords,
+  merge systems, toggle tie, glyph pixel rebuilding, cross-system links
 - Streamable HTTP transport
 
 ## Requirements

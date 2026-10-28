@@ -399,7 +399,7 @@ public abstract class InspectionTools
         return true;
     }
 
-    private static Map<String, Object> symbolSummary (Inter inter,
+    static Map<String, Object> symbolSummary (Inter inter,
                                                       boolean includeRelations,
                                                       boolean includeAttributes,
                                                       boolean includeGlyph)

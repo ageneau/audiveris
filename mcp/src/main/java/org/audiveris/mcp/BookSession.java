@@ -25,6 +25,8 @@ import org.audiveris.omr.sheet.Book;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -43,6 +45,8 @@ public class BookSession
     public final Instant createdAt = Instant.now();
 
     public final ReentrantLock lock = new ReentrantLock();
+
+    private final Map<Integer, EditHistory> editHistories = new ConcurrentHashMap<>();
 
     private volatile Path bookPath;
 
@@ -90,5 +94,10 @@ public class BookSession
     public void touch ()
     {
         lastAccessedAt = Instant.now();
+    }
+
+    public EditHistory getEditHistory (int sheet)
+    {
+        return editHistories.computeIfAbsent(sheet, key -> new EditHistory());
     }
 }

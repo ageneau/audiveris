@@ -1233,6 +1233,12 @@ When `include_glyph` is true, `symbol` also contains:
 
 Editing operates on one sheet at a time and is serialized with processing.
 
+Implemented v1: `add_symbol`, `remove_symbols`, `move_symbol`, `link_symbols`,
+`unlink_symbols`, `undo_edit`, `redo_edit`, `get_edit_history`.
+
+Reserved for later: `update_symbol`, `reprocess_rhythm`, split/merge chords,
+merge systems, toggle tie, cross-system links and glyph pixel rebuilding.
+
 ### `add_symbol`
 
 Input:
