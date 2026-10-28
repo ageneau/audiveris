@@ -10,7 +10,7 @@ roadmap are in [`../PLAN.md`](../PLAN.md).
 
 Implemented:
 
-- STDIO transport
+- STDIO and Streamable HTTP transports
 - headless Audiveris bootstrap
 - diagnostics: `version`, `list_steps`, `list_ocr_languages`, `list_shapes`,
   `list_relation_types`
@@ -33,7 +33,6 @@ Not implemented yet:
 
 - advanced editing: `update_symbol`, `reprocess_rhythm`, split/merge chords,
   merge systems, toggle tie, glyph pixel rebuilding, cross-system links
-- Streamable HTTP transport
 
 ## Requirements
 
@@ -84,6 +83,20 @@ mcp/build/install/mcp/bin/mcp \
   --workspace /path/to/workspace
 ```
 
+HTTP:
+
+```sh
+AUDIVERIS_MCP_TOKEN=secret \
+mcp/build/install/mcp/bin/mcp \
+  --transport http \
+  --http-host 127.0.0.1 \
+  --http-port 8765 \
+  --http-path /mcp \
+  --workspace /path/to/workspace
+```
+
+Use `--transport both` to serve STDIO and HTTP from one process.
+
 Or during development:
 
 ```sh
@@ -92,6 +105,10 @@ Or during development:
 
 The server uses `--workspace` for relative input/output paths. Open inputs and
 `.omr` files are stored under `<workspace>/books`.
+
+HTTP binds to `127.0.0.1` by default. A non-loopback bind requires a token,
+provided with `--http-token` or `AUDIVERIS_MCP_TOKEN`; prefer the environment
+variable to avoid exposing it in the process list.
 
 ## MCP client configuration
 
@@ -110,6 +127,21 @@ Example:
       ],
       "env": {
         "TESSDATA_PREFIX": "/usr/share/tesseract-ocr/5/tessdata"
+      }
+    }
+  }
+}
+```
+
+HTTP client example:
+
+```json
+{
+  "mcpServers": {
+    "audiveris": {
+      "url": "http://127.0.0.1:8765/mcp",
+      "headers": {
+        "Authorization": "Bearer secret"
       }
     }
   }

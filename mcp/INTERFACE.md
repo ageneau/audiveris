@@ -28,7 +28,9 @@ returned as absolute local paths.
 
 - **STDIO** (default): newline-delimited JSON-RPC over stdin/stdout.
   All non-protocol stdout is redirected to stderr.
-- **Streamable HTTP**: endpoint `/mcp` by default.
+- **Streamable HTTP**: endpoint `/mcp` by default. It binds to loopback by default;
+  a non-loopback bind requires a bearer token. Clients send
+  `Authorization: Bearer <token>` when a token is configured.
 - **Both**: one process may serve STDIO and HTTP simultaneously.
 
 All JSON is UTF-8. Timestamps are ISO-8601 UTC strings, for example
