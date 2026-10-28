@@ -36,6 +36,8 @@ import org.audiveris.omr.sheet.SheetStub;
 import org.audiveris.omr.sheet.Staff;
 import org.audiveris.omr.sheet.SystemInfo;
 import org.audiveris.omr.step.OmrStep;
+import org.audiveris.omr.text.Language;
+import org.audiveris.omr.text.tesseract.TesseractOCR;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.SortedSet;
 
 /**
  * MCP tools that manage open books and expose book/sheet summaries.
@@ -66,7 +69,8 @@ public abstract class SessionTools
                 getSheet(mapper, service),
                 saveBook(mapper, service),
                 setSheetSelection(mapper, service),
-                setSheetValidity(mapper, service));
+                setSheetValidity(mapper, service),
+                setParameters(mapper, service));
     }
 
     private static SyncToolSpecification openInput (McpJsonMapper mapper,
@@ -461,6 +465,113 @@ public abstract class SessionTools
                 });
     }
 
+    private static SyncToolSpecification setParameters (McpJsonMapper mapper,
+                                                        OmrService service)
+    {
+        final Map<String, Object> parameterProperties = new LinkedHashMap<>();
+        parameterProperties.put("ocr_languages", Schemas.string(
+                "OCR language specification, for example \"eng+fra+spa\"."));
+
+        final Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("book_id", Schemas.string("Book session identifier."));
+        properties.put("sheet", Schemas.integer(
+                "Optional 1-based sheet number; omit for book level."));
+        properties.put("parameters", Schemas.object(
+                parameterProperties,
+                "ocr_languages"));
+
+        return spec(
+                "set_parameters",
+                "Set parameters",
+                "Set book or sheet parameters. Only ocr_languages is implemented in v1.",
+                Schemas.object(properties, "book_id", "parameters"),
+                annotations("Set parameters", false, true, true),
+                (exchange, request) -> {
+                    final Map<String, Object> args = arguments(request);
+
+                    try {
+                        final String bookId = requiredString(args, "book_id");
+                        final Integer sheetNumber = optionalInteger(args, "sheet");
+                        final Object parametersValue = args.get("parameters");
+
+                        if (!(parametersValue instanceof Map<?, ?> parameters)) {
+                            throw new IllegalArgumentException(
+                                    "'parameters' must be an object");
+                        }
+
+                        for (Object key : parameters.keySet()) {
+                            if (!"ocr_languages".equals(key)) {
+                                return ToolResults.error(
+                                        mapper,
+                                        "UNSUPPORTED",
+                                        "Parameter '" + key + "' is not implemented yet");
+                            }
+                        }
+
+                        final Object languagesValue = parameters.get("ocr_languages");
+
+                        if (!(languagesValue instanceof String languages)) {
+                            throw new IllegalArgumentException(
+                                    "'ocr_languages' must be a string");
+                        }
+
+                        final String spec = languages.trim();
+
+                        if (spec.isEmpty()) {
+                            throw new IllegalArgumentException(
+                                    "'ocr_languages' must not be empty");
+                        }
+
+                        final SortedSet<String> installed;
+
+                        try {
+                            installed = TesseractOCR.getInstance().getSupportedLanguages();
+                        } catch (Throwable ex) {
+                            return ToolResults.error(
+                                    mapper,
+                                    "OCR_UNAVAILABLE",
+                                    ex.toString());
+                        }
+
+                        for (String code : Language.codesOf(spec)) {
+                            if (!installed.contains(code)) {
+                                throw new IllegalArgumentException(
+                                        "OCR language is not installed: " + code);
+                            }
+                        }
+
+                        final BookSession session = service.get(bookId);
+                        session.lock.lock();
+
+                        try {
+                            if (sheetNumber != null) {
+                                final SheetStub stub = session.book.getStub(sheetNumber);
+
+                                if (stub == null) {
+                                    throw new NoSuchElementException(
+                                            "No sheet " + sheetNumber + " in book " + bookId);
+                                }
+
+                                stub.getOcrLanguagesParam().setSpecific(spec);
+                                stub.setModified(true);
+                            } else {
+                                session.book.getOcrLanguagesParam().setSpecific(spec);
+                            }
+
+                            session.book.setModified(true);
+                        } finally {
+                            session.lock.unlock();
+                        }
+
+                        return ToolResults.success(
+                                mapper,
+                                Map.of("applied", List.of("ocr_languages")));
+                    } catch (Throwable ex) {
+                        return error(mapper, ex);
+                    }
+                });
+    }
+
     private static Map<String, Object> bookSummary (BookSession session,
                                                     boolean reused)
     {
@@ -761,6 +872,22 @@ public abstract class SessionTools
         }
 
         return string;
+    }
+
+    private static Integer optionalInteger (Map<String, Object> args,
+                                            String key)
+    {
+        final Object value = args.get(key);
+
+        if (value == null) {
+            return null;
+        }
+
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException("'" + key + "' must be an integer");
+        }
+
+        return number.intValue();
     }
 
     private static int requiredInteger (Map<String, Object> args,

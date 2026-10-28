@@ -800,28 +800,29 @@ Input:
 }
 ```
 
-`sheet` is optional. Supported v1 keys:
+`sheet` is optional. V1 implements only `ocr_languages`:
 
-| Key | Type | Scope |
-| :--- | :--- | :--- |
-| `interline` | integer | sheet |
-| `beam` | integer | sheet |
-| `input_quality` | `Synthetic`, `Standard`, `Poor` | sheet |
-| `music_family` | string | sheet |
-| `text_family` | string | sheet |
-| `ocr_languages` | string | sheet/book |
-| `processing_switches` | object of booleans | sheet/book |
+| Key | Type | Scope | V1 |
+| :--- | :--- | :--- | :--- |
+| `ocr_languages` | string | sheet/book | yes |
+| `interline` | integer | sheet | reserved |
+| `beam` | integer | sheet | reserved |
+| `input_quality` | `Synthetic`, `Standard`, `Poor` | sheet | reserved |
+| `music_family` | string | sheet | reserved |
+| `text_family` | string | sheet | reserved |
+| `processing_switches` | object of booleans | sheet/book | reserved |
 
 Result:
 
 ```json
 {
-  "applied": ["interline", "processing_switches.tremolos"],
+  "applied": ["ocr_languages"],
   "warnings": []
 }
 ```
 
-Unknown keys or invalid values produce `INVALID_ARGUMENT`.
+Unknown or reserved keys return `UNSUPPORTED`. Invalid values return
+`INVALID_ARGUMENT`.
 
 ### `get_constants`
 

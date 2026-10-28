@@ -17,6 +17,7 @@ Implemented:
 - book sessions: `open_input`, `open_book`, `close_book`, `list_books`,
   `get_book`, `get_sheets`, `get_sheet`, `save_book`
 - sheet selection and validity
+- `set_parameters` for `ocr_languages`
 - asynchronous jobs: `get_job`, `list_jobs`, `cancel_job`, `get_log`
 - processing and export: `run_step`, `transcribe`, `export_musicxml`,
   `print_book`
@@ -33,7 +34,33 @@ Not implemented yet:
 ## Requirements
 
 - JDK 25 (see `gradle.properties`)
-- Tesseract language data for OCR (`TESSDATA_PREFIX`)
+- Legacy-compatible Tesseract language data for OCR
+
+Audiveris uses Tesseract's **legacy** engine. Debian/Ubuntu packages such as
+`tesseract-ocr-eng` may provide LSTM-only data and fail with:
+
+```text
+Tesseract (legacy) engine requested, but components are not present
+```
+
+Use legacy-compatible files from the `tesseract-ocr/tessdata` repository:
+
+```sh
+mkdir -p ~/.config/AudiverisLtd/audiveris/tessdata
+cd ~/.config/AudiverisLtd/audiveris/tessdata
+for lang in eng fra spa; do
+  curl -L -O "https://github.com/tesseract-ocr/tessdata/raw/4.1.0/${lang}.traineddata"
+done
+```
+
+This is Audiveris' default OCR folder. Alternatively, put the files in another
+directory and set `TESSDATA_PREFIX` to it.
+
+The OCR language selection is a book/sheet parameter:
+
+```json
+{"book_id":"...","parameters":{"ocr_languages":"eng+fra+spa"}}
+```
 
 If only a JDK 21 is available, a development build can be attempted with:
 
@@ -76,7 +103,10 @@ Example:
         "stdio",
         "--workspace",
         "/absolute/path/to/workspace"
-      ]
+      ],
+      "env": {
+        "TESSDATA_PREFIX": "/usr/share/tesseract-ocr/5/tessdata"
+      }
     }
   }
 }
