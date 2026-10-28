@@ -153,3 +153,7 @@ HTTP client example:
 ```sh
 ./gradlew :mcp:test
 ```
+
+The suite includes an integration test that transcribes `data/examples/cucaracha.png`,
+exports MusicXML, and exercises symbol editing. It needs the OCR language data
+above and takes roughly 15–20 seconds.
